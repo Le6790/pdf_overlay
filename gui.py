@@ -8,9 +8,7 @@ import customtkinter as ctk
 from pathlib import Path
 from tkinter import filedialog, messagebox
 
-import fitz  # PyMuPDF – needed to read overlay page count
-
-from overlay_pdf import determine_output_path, overlay_pdfs, validate_inputs
+from overlay_pdf import determine_output_path, get_page_count, overlay_pdfs, validate_inputs
 
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
@@ -35,16 +33,6 @@ def _pick_output(entry_var):
     )
     if path:
         entry_var.set(path)
-
-
-def _get_overlay_page_count(path_str):
-    try:
-        doc = fitz.open(path_str)
-        n = len(doc)
-        doc.close()
-        return n
-    except Exception:
-        return None
 
 
 # ── main window ───────────────────────────────────────────────────────────────
@@ -134,7 +122,7 @@ class App(ctk.CTk):
 
     def _on_overlays_changed(self, *_):
         path_str = self.overlays_var.get().strip()
-        n = _get_overlay_page_count(path_str) if path_str else None
+        n = get_page_count(path_str) if path_str else None
         if n is not None:
             self._page_max = n - 1
             self.page_count_label.configure(

@@ -14,6 +14,17 @@ from pathlib import Path
 import fitz  # PyMuPDF
 
 
+def get_page_count(path):
+    """Return the number of pages in a PDF, or None if it cannot be opened."""
+    try:
+        doc = fitz.open(str(path))
+        n = len(doc)
+        doc.close()
+        return n
+    except Exception:
+        return None
+
+
 def validate_inputs(args):
     """Fail-fast validation: file existence, extensions, overlay-page range."""
     if not args.source_pdf.exists():
@@ -37,13 +48,9 @@ def validate_inputs(args):
               file=sys.stderr)
         sys.exit(1)
 
-    # Check overlay page is within range
-    try:
-        overlay_doc = fitz.open(str(args.overlays_pdf))
-        overlay_count = len(overlay_doc)
-        overlay_doc.close()
-    except Exception as e:
-        print(f"Error: Could not open overlays PDF: {e}", file=sys.stderr)
+    overlay_count = get_page_count(args.overlays_pdf)
+    if overlay_count is None:
+        print(f"Error: Could not open overlays PDF: {args.overlays_pdf}", file=sys.stderr)
         sys.exit(1)
 
     if args.overlay_page >= overlay_count:
