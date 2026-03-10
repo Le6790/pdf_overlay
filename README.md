@@ -34,9 +34,15 @@ python overlay_pdf.py source.pdf envelope.pdf -p 1 -v
 
 Requires Python 3.13+ built with Tcl/Tk 8.6 support.
 
-```bash
-python -m venv env
+```bash Linux
+python3 -m venv env
 source env/bin/activate
 pip install -r requirements.txt
 ```
+```powershell Windows
+python -m venv env
+./env\Scripts\activate
+pip install -r requirements.txt
+```
+
 
