@@ -74,7 +74,7 @@ class App(ctk.CTk):
         ctk.CTkLabel(frame, text="Overlay page:").grid(row=2, column=0, sticky="w", **pad)
         page_frame = ctk.CTkFrame(frame, fg_color="transparent")
         page_frame.grid(row=2, column=1, sticky="w", **pad)
-        self.page_var = ctk.IntVar(value=0)
+        self.page_var = ctk.IntVar(value=1)
         ctk.CTkButton(page_frame, text="−", width=30,
                       command=self._decrement_page).grid(row=0, column=0, padx=(0, 4))
         self.page_entry = ctk.CTkEntry(page_frame, textvariable=self.page_var, width=50,
@@ -86,31 +86,42 @@ class App(ctk.CTk):
                                              text_color="gray")
         self.page_count_label.grid(row=0, column=3, padx=(6, 0))
 
+        # Specific pages
+        ctk.CTkLabel(frame, text="Specific pages:").grid(row=3, column=0, sticky="w", **pad)
+        self.pages_var = ctk.StringVar()
+        ctk.CTkEntry(frame, textvariable=self.pages_var, width=380,
+                     placeholder_text="e.g. 1 3 5  (leave blank to apply primary overlay to all pages)"
+                     ).grid(row=3, column=1, columnspan=2, sticky="w", **pad)
+        ctk.CTkLabel(frame,
+                     text="1-indexed source pages for primary overlay; remaining pages use overlay page 2",
+                     text_color="gray"
+                     ).grid(row=4, column=1, columnspan=2, sticky="w", padx=10, pady=(0, 4))
+
         # Output PDF
-        ctk.CTkLabel(frame, text="Output PDF:").grid(row=3, column=0, sticky="w", **pad)
+        ctk.CTkLabel(frame, text="Output PDF:").grid(row=5, column=0, sticky="w", **pad)
         self.output_var = ctk.StringVar()
-        ctk.CTkEntry(frame, textvariable=self.output_var, width=380).grid(row=3, column=1, **pad)
+        ctk.CTkEntry(frame, textvariable=self.output_var, width=380).grid(row=5, column=1, **pad)
         ctk.CTkButton(frame, text="Browse…", width=80,
                       command=lambda: _pick_output(self.output_var)
-                      ).grid(row=3, column=2, **pad)
+                      ).grid(row=5, column=2, **pad)
         ctk.CTkLabel(frame, text="(leave blank for auto)", text_color="gray"
-                     ).grid(row=4, column=1, sticky="w", padx=10, pady=(0, 4))
+                     ).grid(row=6, column=1, sticky="w", padx=10, pady=(0, 4))
 
         # Run button
         self.run_btn = ctk.CTkButton(frame, text="Run", command=self._run)
-        self.run_btn.grid(row=5, column=0, columnspan=3, pady=(4, 8))
+        self.run_btn.grid(row=7, column=0, columnspan=3, pady=(4, 8))
 
         # Log
-        ctk.CTkLabel(frame, text="Log:").grid(row=6, column=0, sticky="nw", **pad)
+        ctk.CTkLabel(frame, text="Log:").grid(row=8, column=0, sticky="nw", **pad)
         self.log = ctk.CTkTextbox(frame, width=480, height=160, state="disabled",
                                   wrap="word", font=("Courier", 11))
-        self.log.grid(row=6, column=1, columnspan=2, **pad)
+        self.log.grid(row=8, column=1, columnspan=2, **pad)
 
     # ── page spinner helpers ──────────────────────────────────────────────────
 
     def _decrement_page(self):
         v = self.page_var.get()
-        if v > 0:
+        if v > 1:
             self.page_var.set(v - 1)
 
     def _increment_page(self):
@@ -124,12 +135,12 @@ class App(ctk.CTk):
         path_str = self.overlays_var.get().strip()
         n = get_page_count(path_str) if path_str else None
         if n is not None:
-            self._page_max = n - 1
+            self._page_max = n
             self.page_count_label.configure(
-                text=f"  (0 – {n - 1}, {n} page{'s' if n != 1 else ''})",
+                text=f"  (1 – {n}, {n} page{'s' if n != 1 else ''})",
             )
-            if self.page_var.get() >= n:
-                self.page_var.set(0)
+            if self.page_var.get() > n:
+                self.page_var.set(1)
         else:
             self._page_max = 0
             self.page_count_label.configure(text="  (open an overlays PDF first)")
@@ -138,11 +149,25 @@ class App(ctk.CTk):
         source_str = self.source_var.get().strip()
         overlays_str = self.overlays_var.get().strip()
         output_str = self.output_var.get().strip()
+        pages_str = self.pages_var.get().strip()
         page_num = self.page_var.get()
 
         if not source_str or not overlays_str:
             messagebox.showerror("Missing input", "Please select both source and overlays PDFs.")
             return
+
+        specific_pages = None
+        if pages_str:
+            try:
+                specific_pages = [int(p) for p in pages_str.split()]
+                if any(p < 1 for p in specific_pages):
+                    messagebox.showerror("Invalid pages",
+                                         "Page numbers must be 1 or greater.")
+                    return
+            except ValueError:
+                messagebox.showerror("Invalid pages",
+                                     "Enter space-separated integers, e.g. 1 3 5")
+                return
 
         source_path = Path(source_str)
         overlays_path = Path(overlays_str)
@@ -153,22 +178,26 @@ class App(ctk.CTk):
         self._log(f"Source:   {source_path}")
         self._log(f"Overlays: {overlays_path} (page {page_num})")
         self._log(f"Output:   {output_path}")
+        if specific_pages:
+            self._log(f"Primary overlay on pages: {specific_pages}")
+            self._log("Remaining pages use overlay page 2")
         self._log("Running…")
 
         threading.Thread(
             target=self._worker,
-            args=(source_path, overlays_path, output_path, page_num),
+            args=(source_path, overlays_path, output_path, page_num, specific_pages),
             daemon=True,
         ).start()
 
-    def _worker(self, source_path, overlays_path, output_path, page_num):
+    def _worker(self, source_path, overlays_path, output_path, page_num, specific_pages):
         # Reuse CLI validation via a small namespace shim
-        class Args:
-            pass
-        args = Args()
-        args.source_pdf = source_path
-        args.overlays_pdf = overlays_path
-        args.overlay_page = page_num
+        import types
+        args = types.SimpleNamespace(
+            source_pdf=source_path,
+            overlays_pdf=overlays_path,
+            overlay_page=page_num,
+            pages=specific_pages,
+        )
 
         # Capture stderr-style errors by wrapping validate_inputs
         import io, contextlib
@@ -181,7 +210,8 @@ class App(ctk.CTk):
             self.after(0, self._finish, False)
             return
 
-        rc = overlay_pdfs(source_path, overlays_path, output_path, page_num, verbose=True)
+        rc = overlay_pdfs(source_path, overlays_path, output_path, page_num - 1, verbose=True,
+                          specific_pages=specific_pages)
         if rc == 0:
             self.after(0, self._log, f"Done! Saved to: {output_path}")
             self.after(0, self._finish, True)

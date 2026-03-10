@@ -26,7 +26,7 @@ python overlay_pdf.py source.pdf envelope.pdf -p 1 -v
 |---|---|
 | `source_pdf` | Source PDF with content to overlay |
 | `overlays_pdf` | Overlay template PDF |
-| `-p N` / `--overlay-page N` | 0-indexed page from overlays PDF to use (default: `0`) |
+| `-p N` / `--overlay-page N` | Page from overlays PDF to use, 1-indexed (default: `1`) |
 | `-o PATH` / `--output PATH` | Output path (default: `<source>_overlaid.pdf` alongside source) |
 | `-v` / `--verbose` | Print per-page progress and size-mismatch warnings |
 
